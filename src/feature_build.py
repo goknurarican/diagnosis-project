@@ -2,117 +2,126 @@
 """
 feature_build.py
 
-– Reads *_clean.parquet (with INITIAL_EVIDENCE &
-  DIFFERENTIAL_DIAGNOSIS columns)
-– Builds ev2id.json on train (reused on other splits)
-– Bins age, encodes sex
-– Multi-hot evidences + initial evidence one-hot
-– Extracts first 3 differential probs & label-IDs
-– Saves X.npz, y.npy
+1) Load cleaned parquet (without leakage columns)
+2) Mask top-k evidences and apply random noise
+3) Build or load ev2id.json
+4) Bin age into 4 one-hot bins, encode sex
+5) Multi-hot encode evidences only
+6) Save X as sparse .npz and y as .npy
 """
-
-import os, json, ast, argparse
-import numpy as np, pandas as pd
+import json, ast, argparse, random
+import numpy as np
+import pandas as pd
 from pathlib import Path
 from scipy import sparse
 
+# List of top codes to mask (precomputed based on train stats)
+TOP_K_CODES = [
+    # e.g. 'E_204_@_V_10', 'E_53', ... fill with your top 20 most frequent codes
+]
+
+# Noise probability
+NOISE_P = 0.1  # drop 10% of evidences randomly
+
+
 def make_ev2id(df):
     codes = set()
-    for s in df["evidences"].dropna():
+    for s in df['evidences'].dropna():
         codes |= set(ast.literal_eval(s))
-    return {c:i for i,c in enumerate(sorted(codes))}
+    # mask before building id mapping
+    codes -= set(TOP_K_CODES)
+    return {c: i for i, c in enumerate(sorted(codes))}
+
 
 def load_ev2id(path):
     return json.loads(Path(path).read_text())
 
+
+def load_cond2id(path):
+    return json.loads(Path(path).read_text())
+
+
 def bin_age(arr):
-    bins = [0,15,41,66, np.inf]
-    idx = np.digitize(arr, bins)-1
-    mat = np.zeros((len(arr),4),dtype=np.int8)
+    bins = [0, 15, 41, 66, np.inf]
+    idx = np.digitize(arr, bins) - 1
+    mat = np.zeros((len(arr), 4), dtype=np.int8)
     mat[np.arange(len(arr)), idx] = 1
     return mat
 
-def build_features(df, ev2id, cond2id):
-    n, m = len(df), len(ev2id)
-    # 1) age bins & sex
-    age_mat = bin_age(df["age"].to_numpy())
-    sex_mat = df["sex"].to_numpy().reshape(-1,1).astype(np.int8)
+
+def random_mask_and_noise(s):
+    if pd.isna(s): return s
+    lst = ast.literal_eval(s)
+    # mask top codes
+    filtered = [c for c in lst if c not in TOP_K_CODES]
+    # random noise drop
+    noisy = [c for c in filtered if random.random() > NOISE_P]
+    return str(noisy)
+
+
+def build_features(df, ev2id, cond2id=None):
+    # apply mask and noise
+    df['evidences'] = df['evidences'].apply(random_mask_and_noise)
+
+    n = len(df)
+    m = len(ev2id)
+    # 1) age bins + sex
+    age_mat = bin_age(df['age'].to_numpy())
+    sex_mat = df['sex'].to_numpy().reshape(-1, 1).astype(np.int8)
 
     # 2) multi-hot evidences
-    rows,cols = [],[]
-    for i,s in enumerate(df["evidences"]):
+    rows, cols = [], []
+    for i, s in enumerate(df['evidences']):
         if pd.isna(s): continue
         for code in ast.literal_eval(s):
             j = ev2id.get(code)
             if j is not None:
                 rows.append(i); cols.append(j)
-    data = np.ones(len(rows),dtype=np.int8)
-    ev_mat = sparse.csr_matrix((data,(rows,cols)),shape=(n,m),dtype=np.int8)
-
-    # 3) initial evidence one-hot
-    init_rows, init_cols = [], []
-    for i,code in enumerate(df["initial_evidence"]):
-        j = ev2id.get(code)
-        if j is not None:
-            init_rows.append(i); init_cols.append(j)
-    init_data = np.ones(len(init_rows),dtype=np.int8)
-    init_mat = sparse.csr_matrix(
-        (init_data,(init_rows,init_cols)), shape=(n,m), dtype=np.int8
-    )
-
-    # 4) differential diagnosis (first 3)
-    diff_probs = np.zeros((n,3),dtype=np.float32)
-    diff_ids   = np.zeros((n,3),dtype=np.int16)
-    for i,s in enumerate(df["differential_diagnosis"]):
-        if pd.isna(s): continue
-        arr = ast.literal_eval(s)  # list of [ [cond,prob],... ]
-        for k,(cond,prob) in enumerate(arr[:3]):
-            diff_probs[i,k] = prob
-            diff_ids[i,k]   = cond2id.get(cond, -1)
+    data = np.ones(len(rows), dtype=np.int8)
+    ev_mat = sparse.csr_matrix((data, (rows, cols)), shape=(n, m), dtype=np.int8)
 
     # assemble dense + sparse
-    dense = np.hstack([age_mat, sex_mat, diff_probs, diff_ids])
-    X = sparse.hstack([
-        sparse.csr_matrix(dense),
-        ev_mat, init_mat
-    ], format="csr")
+    dense = np.hstack([age_mat, sex_mat])
+    X = sparse.hstack([sparse.csr_matrix(dense), ev_mat], format='csr')
     return X
+
 
 def main(input_path, output_dir, ev2id_path=None, cond2id_path=None):
     inp = Path(input_path)
-    out = Path(output_dir); out.mkdir(exist_ok=True, parents=True)
-    df  = pd.read_parquet(inp)
+    out = Path(output_dir); out.mkdir(parents=True, exist_ok=True)
+    df = pd.read_parquet(inp)
 
-    # load or build ev2id
+    # ev2id
     if ev2id_path:
         ev2id = load_ev2id(ev2id_path)
     else:
         ev2id = make_ev2id(df)
-        (out/"ev2id.json").write_text(json.dumps(ev2id,indent=2))
-        print(f"Built ev2id ({len(ev2id)})")
+        (out / 'ev2id.json').write_text(json.dumps(ev2id, indent=2))
+        print(f'Built ev2id ({len(ev2id)})')
 
-    # load or build cond2id (pathology codes)
+    # cond2id
     if cond2id_path:
-        cond2id = json.loads(Path(cond2id_path).read_text())
+        cond2id = load_cond2id(cond2id_path)
     else:
-        cats = df["pathology"].astype("category").cat.categories
-        cond2id = {c:i for i,c in enumerate(cats)}
-        (out/"cond2id.json").write_text(json.dumps(cond2id,indent=2))
-        print(f"Built cond2id ({len(cond2id)})")
+        cats = df['pathology'].astype('category').cat.categories
+        cond2id = {c: i for i, c in enumerate(cats)}
+        (out / 'cond2id.json').write_text(json.dumps(cond2id, indent=2))
+        print(f'Built cond2id ({len(cond2id)})')
 
+    # build features
     X = build_features(df, ev2id, cond2id)
-    basename = inp.stem.replace("_clean","")
-    npz = out/f"{basename}_X.npz"
-    yfn = out/f"{basename}_y.npy"
-    sparse.save_npz(npz, X)
-    np.save(yfn, df["pathology"].astype("category").cat.codes.to_numpy())
-    print(f"Saved → {npz} ({X.shape}), {yfn}")
+    basename = inp.stem.replace('_clean', '')
+    X_path = out / f'{basename}_X.npz'
+    y_path = out / f'{basename}_y.npy'
+    sparse.save_npz(X_path, X)
+    np.save(y_path, df['pathology'].astype('category').cat.codes.to_numpy())
+    print(f'Saved → {X_path} ({X.shape}), {y_path}')
 
-if __name__=="__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--input",      required=True)
-    p.add_argument("--output-dir", required=True)
-    p.add_argument("--ev2id",      default=None)
-    p.add_argument("--cond2id",    default=None)
-    args = p.parse_args()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Build features without leakage columns')
+    parser.add_argument('--input', required=True)
+    parser.add_argument('--output-dir', required=True)
+    parser.add_argument('--ev2id', default=None)
+    parser.add_argument('--cond2id', default=None)
+    args = parser.parse_args()
     main(args.input, args.output_dir, args.ev2id, args.cond2id)
