@@ -36,3 +36,15 @@ e)Evaluation
 -On the held-out test set, we achieved ~88.6 % accuracy and ~0.89 macro-F1.
 -A confusion matrix highlights which diseases the model still confuses—those become prime candidates for further feature engineering or clinician review.
 
+src/ Folder: code overview
+
+| File                   | Description                                                                                                                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`__init__.py`**      | Empty file to mark `src/` as a Python module (not used directly).                                                                                                                                               |
+| **`eval.py`**          | Loads a trained model and evaluates it on test data. Computes accuracy, F1 score, MCC, and saves the confusion matrix plot.                                                                                     |
+| **`feature_build.py`** | Builds machine-readable features from cleaned data. Handles age/sex encoding, multi-hot encoding of evidences, and applies masking + noise if configured. Saves sparse `.npz` feature matrix and `.npy` labels. |
+| **`noise_utils.py`**   | (Optional) Contains utility functions for adding random noise or masking to features, used to simulate real-world variability.                                                                                  |
+| **`preprocess.py`**    | (If used) Handles early-stage raw data formatting, such as merging sources, fixing anomalies, or generating initial CSVs for processing.                                                                        |
+| **`process_data.py`**  | Cleans the original CSV data: fills missing values, encodes categorical fields, drops leakage-prone columns like `INITIAL_EVIDENCE` and `DIFFERENTIAL_DIAGNOSIS`, and saves cleaned `.parquet` files.           |
+| **`top-k-codes.py`**   | Script to find and export the top-K most frequent evidence codes in the training set, used for masking.                                                                                                         |
+| **`train.py`**         | Trains a LightGBM model with 5-fold stratified cross-validation. Applies regularization and early stopping. Saves one model per fold and prints metrics.                                                        |
