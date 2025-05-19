@@ -9,26 +9,28 @@ feature_build.py
 5) Multi-hot encode evidences only
 6) Save X as sparse .npz and y as .npy
 """
-import json, ast, argparse, random
+import json
+import ast
+import argparse
+import random
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from scipy import sparse
 
-# List of top codes to mask (precomputed based on train stats)
-TOP_K_CODES = [
-    # e.g. 'E_204_@_V_10', 'E_53', ... fill with your top 20 most frequent codes
-]
+# List of top codes to mask (based on train set frequency)
+TOP_K_CODES =  ['E_204_@_V_10', 'E_53', 'E_57_@_V_123', 'E_66', 'E_201', 'E_54_@_V_161', 'E_79', 'E_54_@_V_192', 'E_91', 'E_181', 'E_131_@_V_10', 'E_129', 'E_54_@_V_179', 'E_54_@_V_181', 'E_55_@_V_89', 'E_54_@_V_183', 'E_135_@_V_12', 'E_124', 'E_54_@_V_154', 'E_55_@_V_29', 'E_50', 'E_78', 'E_55_@_V_101', 'E_55_@_V_159', 'E_55_@_V_55', 'E_55_@_V_197', 'E_55_@_V_62', 'E_58_@_6', 'E_56_@_5', 'E_54_@_V_198', 'E_59_@_5', 'E_55_@_V_166', 'E_70', 'E_148', 'E_55_@_V_160', 'E_55_@_V_56', 'E_59_@_4', 'E_59_@_3', 'E_58_@_5', 'E_56_@_4', 'E_58_@_7', 'E_45', 'E_56_@_6', 'E_48', 'E_151', 'E_54_@_V_180', 'E_49', 'E_77', 'E_56_@_7', 'E_56_@_3', 'E_55_@_V_148', 'E_55_@_V_167', 'E_130_@_V_156', 'E_97', 'E_58_@_4', 'E_59_@_2', 'E_136_@_0', 'E_144', 'E_41', 'E_82', 'E_89', 'E_69', 'E_59_@_0', 'E_56_@_8', 'E_54_@_V_182', 'E_58_@_2', 'E_58_@_3', 'E_58_@_8', 'E_59_@_1', 'E_57_@_V_39', 'E_104', 'E_155', 'E_226', 'E_55_@_V_20', 'E_55_@_V_21', 'E_55_@_V_137', 'E_105', 'E_55_@_V_109', 'E_55_@_V_108', 'E_55_@_V_25', 'E_56_@_2', 'E_214', 'E_123', 'E_88', 'E_222', 'E_218', 'E_55_@_V_170', 'E_55_@_V_33', 'E_208', 'E_227', 'E_55_@_V_171', 'E_59_@_6', 'E_220', 'E_51', 'E_116', 'E_76', 'E_55_@_V_124', 'E_132_@_0', 'E_135_@_V_10', 'E_209']
+
 
 # Noise probability
-NOISE_P = 0.1  # drop 10% of evidences randomly
+NOISE_P = 0.4  # drop 40% of evidences randomly
 
 
 def make_ev2id(df):
     codes = set()
     for s in df['evidences'].dropna():
         codes |= set(ast.literal_eval(s))
-    # mask before building id mapping
+    # mask top codes before building id mapping
     codes -= set(TOP_K_CODES)
     return {c: i for i, c in enumerate(sorted(codes))}
 
@@ -50,7 +52,8 @@ def bin_age(arr):
 
 
 def random_mask_and_noise(s):
-    if pd.isna(s): return s
+    if pd.isna(s):
+        return s
     lst = ast.literal_eval(s)
     # mask top codes
     filtered = [c for c in lst if c not in TOP_K_CODES]
@@ -60,7 +63,7 @@ def random_mask_and_noise(s):
 
 
 def build_features(df, ev2id, cond2id=None):
-    # apply mask and noise
+    # apply mask and noise to evidences
     df['evidences'] = df['evidences'].apply(random_mask_and_noise)
 
     n = len(df)
@@ -72,11 +75,13 @@ def build_features(df, ev2id, cond2id=None):
     # 2) multi-hot evidences
     rows, cols = [], []
     for i, s in enumerate(df['evidences']):
-        if pd.isna(s): continue
+        if pd.isna(s):
+            continue
         for code in ast.literal_eval(s):
             j = ev2id.get(code)
             if j is not None:
-                rows.append(i); cols.append(j)
+                rows.append(i)
+                cols.append(j)
     data = np.ones(len(rows), dtype=np.int8)
     ev_mat = sparse.csr_matrix((data, (rows, cols)), shape=(n, m), dtype=np.int8)
 
@@ -88,7 +93,8 @@ def build_features(df, ev2id, cond2id=None):
 
 def main(input_path, output_dir, ev2id_path=None, cond2id_path=None):
     inp = Path(input_path)
-    out = Path(output_dir); out.mkdir(parents=True, exist_ok=True)
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
     df = pd.read_parquet(inp)
 
     # ev2id
