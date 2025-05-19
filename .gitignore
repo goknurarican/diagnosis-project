@@ -1,2 +1,6 @@
+#.gitignore
 data/
+*.csv
+*.npy
+*.npz
 *.parquet
