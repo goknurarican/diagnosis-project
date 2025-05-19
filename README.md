@@ -1,10 +1,10 @@
 # Automatic Medical Diagnosis (DDXPlus)
 
-## Kurulum
+## Setup
 
 ```bash
-git clone https://github.com/username/diagnosis-project.git
+git clone https://github.com/goknurarican/diagnosis-project.git
 cd diagnosis-project
 python -m venv venv
-source venv/bin/activate      # veya Windows: venv\Scripts\activate
+source venv/bin/activate      #or Windows: venv\Scripts\activate
 pip install -r requirements.txt
