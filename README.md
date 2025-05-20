@@ -1,15 +1,5 @@
 # Automatic Medical Diagnosis (DDXPlus)
 
-## Setup
-
-
-```bash
-git clone https://github.com/goknurarican/diagnosis-project.git
-cd diagnosis-project
-python -m venv venv
-source venv/bin/activate      #or windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
 
 This project focuses on building a machine learning system for automatic disease prediction using structured patient data. The aim is to assist in the development of intelligent clinical decision support systems by predicting the most likely disease based on patient demographics and reported symptoms.
 
@@ -117,4 +107,78 @@ Each model is evaluated using:
 All metrics are averaged across folds to assess stability and generalization.
 
 ---
+
+
+### How to run the project
+```bash
+git clone https://github.com/goknurarican/diagnosis-project.git
+cd diagnosis-project
+```
+
+```bash
+python -m venv venv
+source venv/bin/activate      #or windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+```bash
+#Preprocess raw dataset
+python process_data.py --input-dir ./ddxplus --output-dir ./cleaned_ddxplus
+
+````
+
+```bash
+# Train set
+python feature_build.py --input ./cleaned_ddxplus/train_clean.parquet --output-dir ./features
+
+# Validation set
+python feature_build.py --input ./cleaned_ddxplus/validate_clean.parquet \
+  --output-dir ./features \
+  --ev2id ./features/ev2id.json \
+  --cond2id ./features/cond2id.json
+
+# Test set
+python feature_build.py --input ./cleaned_ddxplus/test_clean.parquet \
+  --output-dir ./features \
+  --ev2id ./features/ev2id.json \
+  --cond2id ./features/cond2id.json
+
+````
+
+```bash
+#Train LighGBM
+python train.py --x ./features/train_X.npz --y ./features/train_y.npy --output ./models/lgb
+
+
+````
+
+
+```bash
+#Train MLP
+python train_mlp.py --x ./features/train_X.npz --y ./features/train_y.npy --output ./models/mlp
+
+````
+
+
+```bash
+#Evaluate LightGBM (single fold)
+python eval.py \
+  --model ./models/lgb/fold0.txt \
+  --test_X ./features/test_X.npz \
+  --test_y ./features/test_y.npy \
+  --plot_cm
+
+````
+
+```bash
+#Evaluate All MLP Folds
+python eval_mlp.py \
+  --model-dir ./models/mlp \
+  --test_X ./features/test_X.npz \
+  --test_y ./features/test_y.npy \
+  --plot_cm \
+  --cm_out_dir ./models/mlp/confusion_matrices
+
+````
+
 
