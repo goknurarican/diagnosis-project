@@ -2,11 +2,11 @@
 
 
 This project focuses on building a machine learning system for automatic disease prediction using structured patient data. The aim is to assist in the development of intelligent clinical decision support systems by predicting the most likely disease based on patient demographics and reported symptoms.
+IMPORTANT: Due to the large size of the dataset, it is not included in the repo. So the dataset needs to be downloaded from https://github.com/mila-iqia/ddxplus
 
 ## Dataset: DDXPlus
 
 The project uses the **DDXPlus** dataset, a large-scale synthetic medical dataset containing approximately **1.3 million patient records**. Each patient record includes:
-IMPORTANT: Due to the large size of the dataset, it is not included in the repo. So the dataset needs to be downloaded from https://github.com/mila-iqia/ddxplus
 - **Demographics**: Age and sex  
 - **Pathology**: The correct disease (target variable)  
 - **Symptoms (Evidences)**:  
