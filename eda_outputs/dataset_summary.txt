@@ -1,0 +1,15 @@
+Total Records:
+1025602
+
+Number of Features:
+6
+
+Missing Values (%):
+{'AGE': 0.0, 'DIFFERENTIAL_DIAGNOSIS': 0.0, 'SEX': 0.0, 'PATHOLOGY': 0.0, 'EVIDENCES': 0.0, 'INITIAL_EVIDENCE': 0.0}
+
+Age Stats:
+{'count': 1025602.0, 'mean': 39.71, 'std': 22.72, 'min': 0.0, '25%': 22.0, '50%': 39.0, '75%': 56.0, 'max': 109.0}
+
+Sex Distribution:
+{'F': 527798, 'M': 497804}
+
