@@ -1,14 +1,12 @@
-#!/usr/bin/env python3
 """
 process_data.py
-
-1) Explore CSVs
-2) Clean & fill:
+1)Exploring csv files
+2) Cleaning & filling:
    - AGE, SEX
    - Binary / Categorical / Multi-choice evidences
    - Drop INITIAL_EVIDENCE & DIFFERENTIAL_DIAGNOSIS to prevent leakage
    - Normalize column names (lowercase)
-3) Save cleaned Parquet
+3) Saving the cleaned parquet
 """
 
 import os
@@ -64,7 +62,7 @@ def clean(df: pd.DataFrame, evidences: dict) -> pd.DataFrame:
             add.append(pd.DataFrame(arr, columns=cols, index=df.index))
             drop.append(ev_key)
 
-    # one-hot categorical
+    #one-hot categorical
     cat_cols = df.select_dtypes(['category']).columns.tolist()
     if cat_cols:
         df = pd.get_dummies(df, columns=cat_cols, dummy_na=False)
@@ -73,15 +71,15 @@ def clean(df: pd.DataFrame, evidences: dict) -> pd.DataFrame:
         df = pd.concat([df] + add, axis=1)
         df.drop(columns=drop, inplace=True)
 
-    # --- drop leakage columns ---
+    #dropping leakage columns to prevent memorizing
     for col in ['INITIAL_EVIDENCE', 'DIFFERENTIAL_DIAGNOSIS']:
         if col in df.columns:
             df.drop(columns=col, inplace=True)
 
-    # drop the original AGE / SEX to avoid duplicates
+    #droping the original AGE/SEX to avoid duplicates
     df.drop(columns=['AGE', 'SEX'], inplace=True, errors='ignore')
 
-    # Normalize column names
+    #normalizing column names
     df.columns = [col.lower() for col in df.columns]
 
 

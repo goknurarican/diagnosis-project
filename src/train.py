@@ -34,14 +34,13 @@ def main(x_path, y_path, out_dir, use_gpu=False):
     out = Path(out_dir)
     out.mkdir(exist_ok=True, parents=True)
 
-    print("Loading data…")
+    print("loading data..")
     X = sparse.load_npz(x_path).astype(np.float32)
     y = np.load(y_path)
     print(f"X shape = {X.shape}, y shape = {y.shape}")
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-    # LightGBM parameters with regularization
+#LightGBM parameters (with regularization)
     params = {
         "objective": "multiclass",
         "num_class": len(np.unique(y)),
@@ -81,7 +80,7 @@ def main(x_path, y_path, out_dir, use_gpu=False):
         results["mcc"].append(mcc)
         results["f1"].append(f1)
 
-    print("\n=== Cross-Validation Results ===")
+    print("\n... cross-validation results ...")
     for metric, vals in results.items():
         print(f"{metric.upper()}: {np.mean(vals):.4f} ± {np.std(vals):.4f}")
 
