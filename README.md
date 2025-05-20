@@ -10,41 +10,110 @@ source venv/bin/activate      #or windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 
-How LightGBM Model Works on DDXPlus
-We start with the DDXPlus synthetic patient data (around 1.3M records of age, sex, ground-truth disease, and lists of symptoms). Our goal is to train a model that predicts a patient’s disease from their symptoms without peeking at any “cheat” columns.
+This project focuses on building a machine learning system for automatic disease prediction using structured patient data. The aim is to assist in the development of intelligent clinical decision support systems by predicting the most likely disease based on patient demographics and reported symptoms.
 
-a) Data Cleanup
--Removed columns that would leak the answer (initial evidence and differential diagnosis).
--Filled missing age with the median, map sex to 0/1.
--Converted each symptom list into a one-hot (multi-hot) vector.
+## 📂 Dataset: DDXPlus
 
-b)Feature masking and noise
--Identified the top 100 most frequent symptom codes and mask them out—this prevents the model from learning to simply key on the most common signals.
--Randomly dropped 40 % of the remaining symptom codes on each patient to force the model to learn robust patterns.
+The project uses the **DDXPlus** dataset, a large-scale synthetic medical dataset containing approximately **1.3 million patient records**. Each patient record includes:
 
-c)Features
--Demographics:age (binned into 4 ranges) + sex (0/1).
--Symptoms:sparse multi-hot vectors over the ~400 remaining symptom codes.
--We saved this as a scipy CSR matrix (.npz) plus a NumPy array of disease labels (.npy).
+- **Demographics**: Age and sex  
+- **Pathology**: The correct disease (target variable)  
+- **Symptoms (Evidences)**:  
+  - Binary (e.g., fever: yes/no)  
+  - Categorical (e.g., pain intensity: mild/moderate/severe)  
+  - Multi-choice (e.g., pain locations: multiple selections)  
+- **Differential Diagnosis**: Excluded from training to prevent data leakage
 
-d)Training with LightGBM
--We run 5-fold stratified cross-validation, so each fold sees 80 % of train data and validates on 20 %.
--LightGBM hyperparameters are tuned for regularization (e.g. feature_fraction, bagging_fraction, shallow trees) to avoid overfitting.
--Early stopping on validation loss after 20 rounds prevents wasting time on models that no longer improve.
+Dataset is split into:
+- `train.csv` (~1.03M records)  
+- `validate.csv` (~132K records)  
+- `test.csv` (~135K records)  
+Additional files:  
+- `release_evidences.json`: Defines symptom types and options  
+- `release_conditions.json`: Disease definitions and ICD-10 mappings
 
-e)Evaluation
--On the held-out test set, we achieved ~88.6 % accuracy and ~0.89 macro-F1.
--A confusion matrix highlights which diseases the model still confuses—those become prime candidates for further feature engineering or clinician review.
+---
 
-src/ Folder: code overview
+## Models Used
 
-| File                   | Description                                                                                                                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`__init__.py`**      | Empty file to mark `src/` as a Python module (not used directly).                                                                                                                                               |
-| **`eval.py`**          | Loads a trained model and evaluates it on test data. Computes accuracy, F1 score, MCC, and saves the confusion matrix plot.                                                                                     |
-| **`feature_build.py`** | Builds machine-readable features from cleaned data. Handles age/sex encoding, multi-hot encoding of evidences, and applies masking + noise if configured. Saves sparse `.npz` feature matrix and `.npy` labels. |
-| **`noise_utils.py`**   | (Optional) Contains utility functions for adding random noise or masking to features, used to simulate real-world variability.                                                                                  |
-| **`preprocess.py`**    | (If used) Handles early-stage raw data formatting, such as merging sources, fixing anomalies, or generating initial CSVs for processing.                                                                        |
-| **`process_data.py`**  | Cleans the original CSV data: fills missing values, encodes categorical fields, drops leakage-prone columns like `INITIAL_EVIDENCE` and `DIFFERENTIAL_DIAGNOSIS`, and saves cleaned `.parquet` files.           |
-| **`top-k-codes.py`**   | Script to find and export the top-K most frequent evidence codes in the training set, used for masking.                                                                                                         |
-| **`train.py`**         | Trains a LightGBM model with 5-fold stratified cross-validation. Applies regularization and early stopping. Saves one model per fold and prints metrics.                                                        |
+Two models were developed and evaluated:
+
+### LightGBM  
+A gradient boosting model based on decision trees. Preferred for its speed, efficiency, and natural compatibility with sparse, categorical, and imbalanced data.
+
+- 5-fold stratified cross-validation
+- Handles class imbalance using `class_weight='balanced'`
+- Saved as `.txt` models per fold
+
+###  MLP (Multilayer Perceptron)  
+A neural network model used for comparison with deep learning-based methods. Sparse inputs are converted to dense before training.
+
+- 5-fold stratified cross-validation  
+- Training loss curves saved as `.png`  
+- Models saved as `.pkl` per fold
+
+---
+
+
+### Script Explanations
+
+This section provides a brief description of each Python script used in the project:
+
+#### `process_data.py`
+- Cleans and preprocesses the raw CSV files  
+- Handles missing values (e.g., age, sex)  
+- Drops leakage columns (`DIFFERENTIAL_DIAGNOSIS`, `INITIAL_EVIDENCE`)  
+- Normalizes and encodes features  
+- Saves the cleaned data as `.parquet` files
+
+#### `feature_build.py`
+- Converts cleaned `.parquet` files into model-ready formats  
+- Bins age, encodes sex, and applies multi-hot encoding to symptoms  
+- Masks top evidence codes and injects random noise for robustness  
+- Outputs: `X.npz` (features) and `y.npy` (labels)
+
+#### `train.py`
+- Trains **LightGBM** models using 5-fold stratified cross-validation  
+- Automatically handles class imbalance  
+- Saves a separate model for each fold (e.g., `fold0.txt`)  
+- Prints per-fold metrics: Accuracy, F1-Score, MCC
+
+#### `train_mlp.py`
+- Trains **Multilayer Perceptron (MLP)** models using 5-fold CV  
+- Converts sparse features to dense format  
+- Saves each fold model as `.pkl`  
+- Plots training loss curves for each fold
+
+#### `eval.py`
+- Evaluates a single **LightGBM** model on the test set  
+- Reports Accuracy, F1-Score, and MCC  
+- Optionally saves a confusion matrix plot as an image
+
+#### `eval_mlp.py`
+- Evaluates all **5 MLP fold models** on the test set  
+- Reports average metrics across all folds  
+- Optionally saves individual confusion matrices for each fold
+
+#### `explore_ddxplus.py`
+- Performs **Exploratory Data Analysis (EDA)** on the dataset  
+- Generates plots for:
+  - Age distribution  
+  - Sex distribution  
+  - Top 20 pathologies  
+  - Top 20 evidence codes  
+- Outputs a text summary with dataset statistics and missing value analysis
+
+
+## Evaluation
+
+Each model is evaluated using:
+
+- **Accuracy**
+- **Macro F1-Score**
+- **Matthews Correlation Coefficient (MCC)**
+- **Confusion Matrix (optional visualizations)**
+
+All metrics are averaged across folds to assess stability and generalization.
+
+---
+
