@@ -2,17 +2,18 @@
 
 ## Setup
 
+
 ```bash
 git clone https://github.com/goknurarican/diagnosis-project.git
 cd diagnosis-project
 python -m venv venv
 source venv/bin/activate      #or windows: venv\Scripts\activate
 pip install -r requirements.txt
-
+```
 
 This project focuses on building a machine learning system for automatic disease prediction using structured patient data. The aim is to assist in the development of intelligent clinical decision support systems by predicting the most likely disease based on patient demographics and reported symptoms.
 
-## 📂 Dataset: DDXPlus
+## Dataset: DDXPlus
 
 The project uses the **DDXPlus** dataset, a large-scale synthetic medical dataset containing approximately **1.3 million patient records**. Each patient record includes:
 
