@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Evaluate trained MLP models (5-fold) on sparse test data
+evaluate trained MLP models (5-fold) on sparse test data
 and optionally plot/save confusion matrices
 """
 
